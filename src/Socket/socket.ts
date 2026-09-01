@@ -1015,8 +1015,19 @@ export const makeSocket = (config: SocketConfig) => {
 	// update credentials when required
 	ev.on('creds.update', update => {
 		const name = update.me?.name
-		// if name has just been received
-		if (creds.me?.name !== name) {
+		// Only broadcast when a name was actually supplied and differs.
+		//
+		// `creds.update` is emitted with partial payloads that usually omit
+		// `me` entirely (pre-key top-ups, app-state sync counters, history
+		// sync progress). In those cases `name` is `undefined` while
+		// `creds.me.name` is a real string, so a bare `creds.me?.name !== name`
+		// guard passes every single time. The resulting node has its only
+		// attribute stripped by the encoder (WABinary/encode.ts filters
+		// undefined attrs), leaving `<presence/>` with no `type` — which
+		// receivers interpret as `available` (see chats.ts, inbound presence
+		// parsing). The account is silently marked online even when the
+		// socket was created with `markOnlineOnConnect: false`.
+		if (name && creds.me?.name !== name) {
 			logger.debug({ name }, 'updated pushName')
 			sendNode({
 				tag: 'presence',
